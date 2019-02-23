@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-test
+spec:
+  containers:
+  - command:
+    - /tools/bats/bats
+    - -t
+    - /tests/mongodb-up-test.sh
+    env:
+    - name: FULL_NAME
+      value: mongodb-replicaset
+    - name: REPLICAS
+      value: "3"
+    image: mongo:3.6
+    name: mongo
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+    - mountPath: /tests
+      name: tests
+  initContainers:
+  - command:
+    - bash
+    - -c
+    - |
+      set -ex
+      # copy bats to tools dir
+      cp -R /usr/local/libexec/ /tools/bats/
+    image: dduportal/bats:0.4.0
+    name: test-framework
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+  restartPolicy: Never
+  volumes:
+  - emptyDir: {}
+    name: tools
+  - configMap:
+      name: mongodb-replicaset-tests
+    name: tests

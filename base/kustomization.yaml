@@ -1,0 +1,10 @@
+kind: ""
+apiversion: ""
+resources:
+- mongodb-init-configmap.yaml
+- mongodb-mongodb-configmap.yaml
+- mongodb-service-client.yaml
+- mongodb-service.yaml
+- mongodb-statefulset.yaml
+- tests/mongodb-up-test-configmap.yaml
+- tests/mongodb-up-test-pod.yaml
