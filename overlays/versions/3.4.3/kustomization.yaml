@@ -1,0 +1,8 @@
+kind: ""
+apiversion: ""
+bases:
+- ../../../base
+
+images:
+- name: mongo
+  newTag: 3.4.3
