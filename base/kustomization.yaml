@@ -4,7 +4,6 @@ resources:
 - mongodb-configmap.yaml
 - mongodb-poddisruptionbudget.yaml
 - mongodb-service.yaml
-- mongodb-ready-service.yaml
 - mongodb-statefulset.yaml
 - tests/mongodb-up-test-configmap.yaml
 - tests/mongodb-up-test-pod.yaml
