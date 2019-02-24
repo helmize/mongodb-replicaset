@@ -1,5 +1,90 @@
 apiVersion: v1
 data:
+  mongodb-up-test.sh: |-
+    #!/usr/bin/env bash
+
+    MONGOCACRT=/ca/tls.crt
+    MONGOPEM=/work-dir/mongo.pem
+    if [ -f $MONGOPEM ]; then
+        MONGOARGS="--ssl --sslCAFile $MONGOCACRT --sslPEMKeyFile $MONGOPEM"
+    fi
+
+    pod_name() {
+        local full_name="${FULL_NAME?Environment variable FULL_NAME not set}"
+        local index="$1"
+        echo "$full_name-$index.$full_name"
+    }
+
+    replicas() {
+        echo "${REPLICAS?Environment variable REPLICAS not set}"
+    }
+
+    master_pod() {
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" "--host=$(pod_name $i)" "--eval=rs.isMaster().ismaster")
+            if [[ $response =~ "true" ]]; then
+                pod_name "$i"
+                break
+            fi
+        done
+    }
+
+    setup() {
+        local ready=0
+        until [[ $ready -eq $(replicas) ]]; do
+            echo "Waiting for application to become ready" >&2
+            sleep 1
+
+            for ((i = 0; i < $(replicas); ++i)); do
+                response=$(mongo "$MONGOARGS" "--host=$(pod_name $i)" "--eval=rs.status()" || true)
+                if [[ $response =~ .*ok.* ]]; then
+                    ready=$((ready + 1))
+                fi
+            done
+        done
+    }
+
+    @test "Testing mongodb client is accessible" {
+        mongo -h
+        [ "$?" -eq 0 ]
+    }
+
+    @test "Connect mongodb client to mongodb pods" {
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" "--host=$(pod_name $i)" "--eval=rs.status()")
+            if [[ ! $response =~ .*ok.* ]]; then
+                exit 1
+            fi
+        done
+    }
+
+    @test "Write key to master" {
+        response=$(mongo "$MONGOARGS" --host=$(master_pod) "--eval=db.test.insert({\"abc\": \"def\"}).nInserted")
+        if [[ ! $response =~ "1" ]]; then
+            exit 1
+        fi
+    }
+
+    @test "Read key from slaves" {
+        # wait for slaves to catch up
+        sleep 10
+
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" --host=$(pod_name $i) "--eval=rs.slaveOk(); db.test.find({\"abc\":\"def\"})")
+            if [[ ! $response =~ .*def.* ]]; then
+                exit 1
+            fi
+        done
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-tests
+---
+apiVersion: v1
+data:
   mongod.conf: |
     net:
       port: 27017
@@ -12,7 +97,7 @@ metadata:
   labels:
     app: mongodb-replicaset
     release: mongodb-replicaset
-  name: mongodb-replicaset-mongodb-replicaset
+  name: mongodb-replicaset
 ---
 apiVersion: v1
 kind: Service
@@ -22,7 +107,7 @@ metadata:
   labels:
     app: mongodb-replicaset
     release: mongodb-replicaset
-  name: mongodb-replicaset-mongodb-replicaset
+  name: mongodb-replicaset
 spec:
   clusterIP: None
   ports:
@@ -33,40 +118,41 @@ spec:
     release: mongodb-replicaset
   type: ClusterIP
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
   labels:
     app: mongodb-replicaset
     release: mongodb-replicaset
-  name: mongodb-replicaset-mongodb-replicaset
+  name: mongodb-replicaset
 spec:
   replicas: 3
-  serviceName: mongodb-replicaset-mongodb-replicaset
+  selector:
+    matchLabels:
+      app: mongodb-replicaset
+      release: mongodb-replicaset
+  serviceName: mongodb-replicaset
   template:
     metadata:
-      annotations:
-        pod.alpha.kubernetes.io/init-containers: '[ { "name": "install", "image":
-          "gcr.io/google_containers/mongodb-install:0.3", "args": ["--work-dir=/work-dir"],
-          "imagePullPolicy": "IfNotPresent", "volumeMounts": [ { "name": "workdir",
-          "mountPath": "/work-dir" }, { "name": "config", "mountPath": "/config" }
-          ] }, { "name": "bootstrap", "image": "mongo:3.4", "command": ["/work-dir/peer-finder"],
-          "args": ["-on-start=/work-dir/on-start.sh", "-service=mongodb-replicaset-mongodb-replicaset"],
-          "imagePullPolicy": "IfNotPresent", "env": [ { "name": "POD_NAMESPACE", "valueFrom":
-          { "fieldRef": { "apiVersion": "v1", "fieldPath": "metadata.namespace" }
-          } }, { "name": "RS", "value": "rs0" } ], "volumeMounts": [ { "name": "workdir",
-          "mountPath": "/work-dir" }, { "name": "config", "mountPath": "/config" },
-          { "name": "datadir", "mountPath": "/data/db" } ] } ]'
+      annotations: null
       labels:
         app: mongodb-replicaset
         release: mongodb-replicaset
     spec:
       containers:
       - command:
-        - /usr/bin/mongod
+        - mongod
         - --config=/config/mongod.conf
         image: mongo:3.4
         imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - db.adminCommand('ping')
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
         name: mongodb-replicaset
         ports:
         - containerPort: 27017
@@ -74,27 +160,62 @@ spec:
         readinessProbe:
           exec:
             command:
-            - sh
-            - -c
-            - /usr/bin/mongo --eval 'printjson(db.serverStatus())'
+            - mongo
+            - --eval
+            - db.adminCommand('ping')
           initialDelaySeconds: 5
-          timeoutSeconds: 5
+          timeoutSeconds: 1
         resources: {}
         volumeMounts:
         - mountPath: /data/db
           name: datadir
         - mountPath: /config
           name: config
+        - mountPath: /work-dir
+          name: workdir
+      initContainers:
+      - args:
+        - --work-dir=/work-dir
+        image: k8s.gcr.io/mongodb-install:0.5
+        imagePullPolicy: IfNotPresent
+        name: install
+        volumeMounts:
+        - mountPath: /work-dir
+          name: workdir
+        - mountPath: /config
+          name: config
+      - args:
+        - -on-start=/work-dir/on-start.sh
+        - -service=mongodb-replicaset
+        command:
+        - /work-dir/peer-finder
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: REPLICA_SET
+          value: rs0
+        image: mongo:3.4
+        imagePullPolicy: IfNotPresent
+        name: bootstrap
+        volumeMounts:
+        - mountPath: /work-dir
+          name: workdir
+        - mountPath: /config
+          name: config
+        - mountPath: /data/db
+          name: datadir
       volumes:
       - configMap:
-          name: mongodb-replicaset-mongodb-replicaset
+          name: mongodb-replicaset
         name: config
       - emptyDir: {}
         name: workdir
   volumeClaimTemplates:
   - metadata:
-      annotations:
-        volume.beta.kubernetes.io/storage-class: <nil>
+      annotations: null
       name: datadir
     spec:
       accessModes:
@@ -102,3 +223,65 @@ spec:
       resources:
         requests:
           storage: 10Gi
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mongodb-replicaset
+      release: mongodb-replicaset
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-test
+spec:
+  containers:
+  - command:
+    - /tools/bats/bats
+    - -t
+    - /tests/mongodb-up-test.sh
+    env:
+    - name: FULL_NAME
+      value: mongodb-replicaset
+    - name: REPLICAS
+      value: "3"
+    image: mongo:3.4
+    name: mongo
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+    - mountPath: /tests
+      name: tests
+  initContainers:
+  - command:
+    - bash
+    - -c
+    - |
+      set -ex
+      # copy bats to tools dir
+      cp -R /usr/local/libexec/ /tools/bats/
+    image: dduportal/bats:0.4.0
+    name: test-framework
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+  restartPolicy: Never
+  volumes:
+  - emptyDir: {}
+    name: tools
+  - configMap:
+      name: mongodb-replicaset-tests
+    name: tests

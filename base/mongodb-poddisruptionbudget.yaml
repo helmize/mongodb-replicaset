@@ -1,0 +1,13 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mongodb-replicaset
+      release: mongodb-replicaset

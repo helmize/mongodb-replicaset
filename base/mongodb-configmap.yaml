@@ -12,4 +12,4 @@ metadata:
   labels:
     app: mongodb-replicaset
     release: mongodb-replicaset
-  name: mongodb-replicaset-mongodb-replicaset
+  name: mongodb-replicaset
