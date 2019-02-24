@@ -1,0 +1,104 @@
+apiVersion: v1
+data:
+  mongod.conf: |
+    net:
+      port: 27017
+    replication:
+      replSetName: rs0
+    storage:
+      dbPath: /data/db
+kind: ConfigMap
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-mongodb-replicaset
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-mongodb-replicaset
+spec:
+  clusterIP: None
+  ports:
+  - name: peer
+    port: 27017
+  selector:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  type: ClusterIP
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: mongodb-replicaset
+  name: mongodb-replicaset-mongodb-replicaset
+spec:
+  replicas: 3
+  serviceName: mongodb-replicaset-mongodb-replicaset
+  template:
+    metadata:
+      annotations:
+        pod.alpha.kubernetes.io/init-containers: '[ { "name": "install", "image":
+          "gcr.io/google_containers/mongodb-install:0.3", "args": ["--work-dir=/work-dir"],
+          "imagePullPolicy": "IfNotPresent", "volumeMounts": [ { "name": "workdir",
+          "mountPath": "/work-dir" }, { "name": "config", "mountPath": "/config" }
+          ] }, { "name": "bootstrap", "image": "mongo:3.4", "command": ["/work-dir/peer-finder"],
+          "args": ["-on-start=/work-dir/on-start.sh", "-service=mongodb-replicaset-mongodb-replicaset"],
+          "imagePullPolicy": "IfNotPresent", "env": [ { "name": "POD_NAMESPACE", "valueFrom":
+          { "fieldRef": { "apiVersion": "v1", "fieldPath": "metadata.namespace" }
+          } }, { "name": "RS", "value": "rs0" } ], "volumeMounts": [ { "name": "workdir",
+          "mountPath": "/work-dir" }, { "name": "config", "mountPath": "/config" },
+          { "name": "datadir", "mountPath": "/data/db" } ] } ]'
+      labels:
+        app: mongodb-replicaset
+        release: mongodb-replicaset
+    spec:
+      containers:
+      - command:
+        - /usr/bin/mongod
+        - --config=/config/mongod.conf
+        image: mongo:3.4
+        imagePullPolicy: IfNotPresent
+        name: mongodb-replicaset
+        ports:
+        - containerPort: 27017
+          name: peer
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - /usr/bin/mongo --eval 'printjson(db.serverStatus())'
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources: {}
+        volumeMounts:
+        - mountPath: /data/db
+          name: datadir
+        - mountPath: /config
+          name: config
+      volumes:
+      - configMap:
+          name: mongodb-replicaset-mongodb-replicaset
+        name: config
+      - emptyDir: {}
+        name: workdir
+  volumeClaimTemplates:
+  - metadata:
+      annotations:
+        volume.beta.kubernetes.io/storage-class: <nil>
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi

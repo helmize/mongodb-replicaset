@@ -1,0 +1,27 @@
+{
+  "v1": {
+    "config": null,
+    "helmValues": "replicaSet: rs0\nreplicas: 3\nport: 27017\n# Specs for the Docker image for the init container that establishes the replica set\ninstallImage:\n  name: gcr.io/google_containers/mongodb-install\n  tag: 0.3\n  pullPolicy: IfNotPresent\n# Specs for the MongoDB image\nimage:\n  name: mongo\n  tag: 3.4\n  pullPolicy: IfNotPresent\n# Annotations to be added to MongoDB pods\npodAnnotations: {}\n\nresources: {}\n  # limits:\n  #   cpu: 100m\n  #   memory: 512Mi\n  # requests:\n  #   cpu: 100m\n  #   memory: 512Mi\n\npersistentVolume:\n  enabled: true\n  ## If defined, volume.beta.kubernetes.io/storage-class: \u003cstorageClass\u003e\n  ## Default: volume.alpha.kubernetes.io/storage-class: default\n  ##\n  # storageClass: fast\n  accessModes:\n  - ReadWriteOnce\n  size: 10Gi\n  annotations: {}\n\n# Annotations to be added to the service\nserviceAnnotations: {}\n\n# Entries for the MongoDB config file\nconfigmap:\n  storage:\n    dbPath: /data/db\n  net:\n    port: 27017\n  replication:\n    replSetName: rs0\n",
+    "releaseName": "mongodb-replicaset",
+    "helmValuesDefaults": "replicaSet: rs0\nreplicas: 3\nport: 27017\n\n# Specs for the Docker image for the init container that establishes the replica set\ninstallImage:\n  name: gcr.io/google_containers/mongodb-install\n  tag: 0.3\n  pullPolicy: IfNotPresent\n\n# Specs for the MongoDB image\nimage:\n  name: mongo\n  tag: 3.4\n  pullPolicy: IfNotPresent\n\n# Annotations to be added to MongoDB pods\npodAnnotations: {}\n\nresources: {}\n  # limits:\n  #   cpu: 100m\n  #   memory: 512Mi\n  # requests:\n  #   cpu: 100m\n  #   memory: 512Mi\n\npersistentVolume:\n  enabled: true\n  ## If defined, volume.beta.kubernetes.io/storage-class: \u003cstorageClass\u003e\n  ## Default: volume.alpha.kubernetes.io/storage-class: default\n  ##\n  # storageClass: fast\n  accessModes:\n    - ReadWriteOnce\n  size: 10Gi\n  annotations: {}\n\n# Annotations to be added to the service\nserviceAnnotations: {}\n\n# Entries for the MongoDB config file\nconfigmap:\n  storage:\n    dbPath: /data/db\n  net:\n    port: 27017\n  replication:\n    replSetName: rs0\n",
+    "upstream": "https://github.com/helm/charts/tree/0a2c0dc0ee21ed3997fb20b7b1ebce5df0ab4446/stable/mongodb-replicaset",
+    "metadata": {
+      "applicationType": "helm",
+      "icon": "https://webassets.mongodb.com/_com_assets/cms/mongodb-logo-rgb-j6w271g1xn.jpg",
+      "name": "mongodb-replicaset",
+      "releaseNotes": "Move mongodb-replicaset to stable and update mongo version to 3.4 (#428)",
+      "version": "1.0.0"
+    },
+    "contentSHA": "9ad9f3d8b1bd934b4bef772b1148d6fdec7163e028b583d094e35e6c751efe3e",
+    "lifecycle": {
+      "stepsCompleted": {
+        "intro": true,
+        "kustomize": true,
+        "kustomize-intro": true,
+        "outro": true,
+        "render": true,
+        "values": true
+      }
+    }
+  }
+}

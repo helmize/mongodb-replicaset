@@ -1,0 +1,6 @@
+kind: ""
+apiversion: ""
+resources:
+- mongodb-configmap.yaml
+- mongodb-service.yaml
+- mongodb-statefulset.yaml
