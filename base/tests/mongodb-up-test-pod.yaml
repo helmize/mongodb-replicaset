@@ -4,7 +4,7 @@ metadata:
   annotations:
     helm.sh/hook: test-success
   labels:
-    app: mongodb-replicaset
+    app: mongodb-replicaset-tests
     release: mongodb-replicaset
   name: mongodb-replicaset-test
 spec:
@@ -26,6 +26,11 @@ spec:
     - mountPath: /tests
       name: tests
   initContainers:
+  - name: wait-for-mongodb-replicaset
+    image: groundnuty/k8s-wait-for:0.1
+    args:
+    - pod
+    - -lapp=mongodb-replicaset
   - command:
     - bash
     - -c
