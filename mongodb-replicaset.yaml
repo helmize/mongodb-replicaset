@@ -387,7 +387,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: bcc42d3d1d25567b81291107ba3695a3d732fdba5e3ffed4e9a698a18e001a89
+        checksum/config: 4ac83f888e05723f90b1166a9fde4d4ae86d74b7bf5ac8736d7b680c7970055a
       labels:
         app: mongodb-replicaset
         release: mongodb-replicaset
@@ -495,10 +495,6 @@ spec:
           name: configdir
         - mountPath: /data/db
           name: datadir
-      securityContext:
-        fsGroup: 999
-        runAsNonRoot: true
-        runAsUser: 999
       terminationGracePeriodSeconds: 30
       volumes:
       - configMap:
