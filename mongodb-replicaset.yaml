@@ -387,7 +387,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: bcc42d3d1d25567b81291107ba3695a3d732fdba5e3ffed4e9a698a18e001a89
+        checksum/config: 1fc187b6d130111acfb8e5233ce74b5aeaba21dff4714cb34d05c2107290391d
       labels:
         app: mongodb-replicaset
         release: mongodb-replicaset
